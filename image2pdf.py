@@ -12,7 +12,7 @@ from pymongo import MongoClient
 botplays90.basicConfig(level=botplays90.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 # Bot credentials
-TOKEN = "7947805886:AAGAHB2rxrvI8Z2eocdRtry0dtcNUwcIiyc"
+TOKEN = "8082310597:AAHE35HTd2KmASvFszB5ogn_jNxrtkFRtxs"
 API_ID = "26222466"
 API_HASH = "9f70e2ce80e3676b56265d4510561aef"
 
