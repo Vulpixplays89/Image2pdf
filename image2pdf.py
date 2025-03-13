@@ -157,7 +157,7 @@ def generate_pdf(message):
 
         # Send PDF
         with open(pdf_path, "rb") as pdf_file:
-            bot.send_document(user_id, pdf_file, caption=f"✅ Here is your PDF: **{pdf_name}.pdf** 🎉")
+            bot.send_document(user_id, pdf_file, caption=f"✅ Here is your PDF: {pdf_name}.pdf 🎉")
 
         # Cleanup: Remove PDF and clear stored images/messages
         os.remove(pdf_path)
