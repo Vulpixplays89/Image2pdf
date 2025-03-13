@@ -1,187 +1,192 @@
 import os
-import logging as botplays90
+import logging
+import time
 from PIL import Image
-from pyrogram import Client, filters
-from flask import Flask
-from threading import Thread
+import telebot
+from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton, ReplyKeyboardMarkup, KeyboardButton
 from pymongo import MongoClient
+from threading import Thread
+from flask import Flask
+
+# Logging setup
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
+# Environment variables (Use os.getenv() for security instead of hardcoding)
+TOKEN = "8082310597:AAFDZJTjw-dtJsCs5N82rxjcXNOdxAJGhQ4"
+MONGO_URL = "mongodb+srv://textbot:textbot@cluster0.afoyw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+ADMIN_ID = 6897739611
 
 
+bot = telebot.TeleBot(TOKEN)
 
-# Configure botplays90
-botplays90.basicConfig(level=botplays90.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
-# Bot credentials
-TOKEN = "8082310597:AAHE35HTd2KmASvFszB5ogn_jNxrtkFRtxs"
-API_ID = "26222466"
-API_HASH = "9f70e2ce80e3676b56265d4510561aef"
-
-# Initialize Pyrogram bot
-bot_app = Client(
-    "pdf_bot",
-    bot_token=TOKEN,
-    api_hash=API_HASH,
-    api_id=API_ID
-)
-
-
-# MongoDB Setup
-MONGO_URL = "mongodb+srv://fileshare:fileshare@fileshare.ixlhi.mongodb.net/?retryWrites=true&w=majority&appName=fileshare"
+# MongoDB setup
 mongo_client = MongoClient(MONGO_URL)
 db = mongo_client["telegram_bot"]
 users_collection = db["users"]
 
-ADMIN_ID = 6897739611
+# Stores images, message IDs, and custom names per user
+user_images = {}
+user_messages = {}
+pdf_custom_names = {}
 
+# Flask server to keep bot alive
+app = Flask(__name__)
 
-botplays90.info("Bot Started!")
-LIST = {}  # Stores images per user
-MESSAGES = {}  # Stores message IDs for deletion
-
-# Flask Web Server for Keep-Alive (Useful for Replit, Heroku)
-flask_app = Flask(__name__)
-
-@flask_app.route('/')
+@app.route('/')
 def home():
     return "I am alive"
 
 def run_http_server():
-    flask_app.run(host='0.0.0.0', port=8080)
+    app.run(host='0.0.0.0', port=8080)
 
-def botplays_90():
-    t = Thread(target=run_http_server)
-    t.start()
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
+def keep_alive():
+    Thread(target=run_http_server).start()
 
-@bot_app.on_message(filters.command(['start']))
-def start(client, message):
+# Start command
+@bot.message_handler(commands=['start'])
+def start(message):
     user_id = message.from_user.id
     username = message.from_user.username
 
-    # Save user to MongoDB if not already registered
+    # Save user in database if not already registered
     if not users_collection.find_one({"user_id": user_id}):
         users_collection.insert_one({"user_id": user_id, "username": username})
 
-    # Inline buttons
     buttons = InlineKeyboardMarkup([
-        [InlineKeyboardButton("🗿Developer🗿", url="https://t.me/botplays90")],
-        [InlineKeyboardButton("📢Channel📢", url="https://t.me/join_hyponet")]
+        [InlineKeyboardButton("🗿 Developer 🗿", url="https://t.me/botplays90")],
+        [InlineKeyboardButton("📢 Channel 📢", url="https://t.me/join_hyponet")]
     ])
 
-    message.reply_text(
-        f"Hello {message.from_user.first_name}, I am an Image to PDF bot.\n\n"
-        "Send me images, and when you're done, send /convert to get a PDF.",
+    bot.send_message(
+        message.chat.id,
+        f"👋 Hello {message.from_user.first_name}!\n\n"
+        "📸 Send me images, and when you're done, send /convert to get a PDF.\n"
+        "✨ I will combine them into a single PDF for you! 🚀",
         reply_markup=buttons
     )
 
-
-@bot_app.on_message(filters.private & filters.photo)
-async def pdf(client, message):
+# Handling image uploads
+@bot.message_handler(content_types=['photo'])
+def receive_image(message):
     user_id = message.from_user.id
+    if user_id not in user_images:
+        user_images[user_id] = []
+        user_messages[user_id] = []
 
-    if not isinstance(LIST.get(user_id), list):
-        LIST[user_id] = []
+    file_id = message.photo[-1].file_id
+    file_info = bot.get_file(file_id)
+    downloaded_file = bot.download_file(file_info.file_path)
 
-    try:
-        file_id = str(message.photo.file_id)
-        ms = await message.reply_text("Processing image ...")
-        file = await client.download_media(file_id)
+    # Save image locally
+    file_name = f"{user_id}_{len(user_images[user_id])}.jpg"
+    with open(file_name, "wb") as file:
+        file.write(downloaded_file)
 
-        image = Image.open(file)
-        img = image.convert('RGB')
-        LIST[user_id].append(img)
+    # Convert to PIL image and store
+    image = Image.open(file_name).convert('RGB')
+    user_images[user_id].append(image)
 
-        status_msg = await ms.edit(
-            f"{len(LIST[user_id])} image(s) added. Send more or use /convert to generate the PDF."
-        )
+    # Remove local file after processing
+    os.remove(file_name)
 
-        # Store messages for later deletion
-        MESSAGES.setdefault(user_id, []).extend([message.id, ms.id, status_msg.id])
-        os.remove(file)  # Delete the downloaded image after processing
-    except Exception as e:
-        botplays90.error(f"Error processing image: {e}")
-        await message.reply_text("❌ Failed to process the image. Please try again.")
-@bot_app.on_message(filters.command(['users']) & filters.user(ADMIN_ID))
-def list_users(client, message):
-    users = users_collection.find()
-    user_list = "\n".join(
-        [f"ID: {user['user_id']}, Username: @{user.get('username', 'N/A')}" for user in users]
-    )
+    # Send status message and store message IDs for deletion
+    status_msg = bot.send_message(message.chat.id, f"✅ {len(user_images[user_id])} image(s) added.\n"
+                                                    "📌 Send more or use /convert to generate the PDF.")
+    user_messages[user_id].extend([message.message_id, status_msg.message_id])
 
-    if not user_list:
-        user_list = "No users found."
-
-    message.reply_text(f"**Registered Users:**\n\n{user_list}")
-
-
-@bot_app.on_message(filters.command(['broadcast']) & filters.user(ADMIN_ID))
-async def broadcast_message(client, message):
-    if len(message.command) < 2:
-        await message.reply_text("Usage: /broadcast Your message here")
-        return
-
-    text = message.text.split(None, 1)[1]
-    users = users_collection.find()
-
-    sent_count = 0
-    failed_count = 0
-
-    for user in users:
-        user_id = user['user_id']
-        try:
-            await client.send_message(user_id, text)
-            sent_count += 1
-        except Exception:
-            failed_count += 1
-
-    await message.reply_text(
-        f"📢 **Broadcast Summary:**\n"
-        f"✅ Successfully sent to {sent_count} users.\n"
-        f"❌ Failed to send to {failed_count} users."
-    )
-
-
-
-
-@bot_app.on_message(filters.command(['convert']))
-async def done(client, message):
+# Ask user for custom name
+@bot.message_handler(commands=['convert'])
+def ask_custom_name(message):
     user_id = message.from_user.id
-    images = LIST.get(user_id)
+    images = user_images.get(user_id)
 
     if not images:
-        await message.reply_text("❌ No images found! Please upload images first.")
+        bot.send_message(message.chat.id, "❌ No images found! Please upload images first.")
+        return
+
+    # Show custom name option
+    markup = ReplyKeyboardMarkup(resize_keyboard=True, one_time_keyboard=True)
+    markup.add(KeyboardButton("✅ Yes"), KeyboardButton("❌ No"))
+
+    bot.send_message(message.chat.id, "📝 Do you want a custom name for your PDF?", reply_markup=markup)
+    bot.register_next_step_handler(message, handle_custom_name)
+
+# Handle custom name response
+def handle_custom_name(message):
+    user_id = message.from_user.id
+
+    if message.text == "✅ Yes":
+        bot.send_message(message.chat.id, "🔤 Please send the custom name for your PDF (without .pdf extension).")
+        bot.register_next_step_handler(message, set_custom_name)
+    else:
+        pdf_custom_names[user_id] = None  # Use default user_id name
+        generate_pdf(message)
+
+# Store custom name and proceed to generate PDF
+def set_custom_name(message):
+    user_id = message.from_user.id
+    pdf_custom_names[user_id] = message.text.strip()
+    generate_pdf(message)
+
+# Convert images to PDF
+def generate_pdf(message):
+    user_id = message.from_user.id
+    images = user_images.get(user_id)
+
+    if not images:
+        bot.send_message(message.chat.id, "❌ No images found! Please upload images first.")
         return
 
     try:
-        path = f"{user_id}.pdf"
-        images[0].save(path, save_all=True, append_images=images[1:])
-        await client.send_document(user_id, open(path, "rb"), caption="Here is your PDF!")
+        # Progress message
+        status_msg = bot.send_message(message.chat.id, "⏳ Generating PDF... 0%")
 
-        os.remove(path)  # Delete the generated PDF after sending
+        # Generate PDF with either custom name or default user ID
+        pdf_name = pdf_custom_names.get(user_id, f"{user_id}")
+        pdf_path = f"{pdf_name}.pdf"
+        images[0].save(pdf_path, save_all=True, append_images=images[1:])
 
-        # Delete all messages related to image uploads and processing
-        if user_id in MESSAGES:
-            for msg_id in MESSAGES[user_id]:
+        # Simulate progress updates
+        for i in range(1, 6):
+            time.sleep(0.5)
+            bot.edit_message_text(
+                chat_id=message.chat.id,
+                message_id=status_msg.message_id,
+                text=f"⏳ Generating PDF... {i * 20}%"
+            )
+
+        # Send PDF
+        with open(pdf_path, "rb") as pdf_file:
+            bot.send_document(user_id, pdf_file, caption=f"✅ Here is your PDF: **{pdf_name}.pdf** 🎉")
+
+        # Cleanup: Remove PDF and clear stored images/messages
+        os.remove(pdf_path)
+        del user_images[user_id]
+
+        # Delete bot's progress message
+        bot.delete_message(message.chat.id, status_msg.message_id)
+        bot.delete_message(message.chat.id, message.message_id)  # Delete /convert command
+
+        # Delete all stored user messages (images + status messages)
+        if user_id in user_messages:
+            for msg_id in user_messages[user_id]:
                 try:
-                    await client.delete_messages(user_id, msg_id)
-                except Exception as e:
-                    botplays90.warning(f"Failed to delete message {msg_id}: {e}")
+                    bot.delete_message(message.chat.id, msg_id)
+                except Exception:
+                    pass
+            del user_messages[user_id]
 
-            del MESSAGES[user_id]
-
-        # Delete the /convert command message
-        try:
-            await client.delete_messages(user_id, message.id)
-        except Exception as e:
-            botplays90.warning(f"Failed to delete /convert message: {e}")
-
-        del LIST[user_id]  # Clear user data after PDF is created
     except Exception as e:
-        botplays90.error(f"Error generating or sending PDF: {e}")
-        await message.reply_text("❌ An error occurred while generating the PDF. Please try again.")
+        logging.error(f"Error generating PDF: {e}")
+        bot.send_message(message.chat.id, "❌ An error occurred while generating the PDF. Please try again.")
 
-# Start Flask Keep-Alive Server
-botplays_90()
+# Keep bot alive
+keep_alive()
 
-# Start Pyrogram Bot
-bot_app.run()
+while True:
+    try:
+        print("🚀 Bot is running...")
+        bot.polling(none_stop=True, interval=3, timeout=30)
+    except Exception as e:
+        print(f"⚠️ Bot crashed due to: {e}")
+        time.sleep(5)  # Wait 5 seconds before restarting
