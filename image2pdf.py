@@ -187,8 +187,7 @@ def list_users(message):
         return
 
     users = users_collection.find()
-    user_list = "\n".join(
-        [f"🆔 ID: {user['user_id']} or "⚠️ No users found."
+    user_list = "\n".join([f"🆔 ID: {user['user_id']}" for user in users]) or "⚠️ No users found."
 
     bot.send_message(message.chat.id, f"📋 **Registered Users:**\n\n{user_list}")
 
