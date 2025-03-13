@@ -180,6 +180,54 @@ def generate_pdf(message):
         logging.error(f"Error generating PDF: {e}")
         bot.send_message(message.chat.id, "❌ An error occurred while generating the PDF. Please try again.")
 
+@bot.message_handler(commands=['users'])
+def list_users(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.send_message(message.chat.id, "❌ You are not authorized to use this command.")
+        return
+
+    users = users_collection.find()
+    user_list = "\n".join(
+        [f"🆔 ID: {user['user_id']}, 👤 Username: @{user.get('username', 'N/A')}" for user in users]
+    ) or "⚠️ No users found."
+
+    bot.send_message(message.chat.id, f"📋 **Registered Users:**\n\n{user_list}")
+
+@bot.message_handler(commands=['broadcast'])
+def broadcast_message(message):
+    if message.from_user.id != ADMIN_ID:
+        bot.send_message(message.chat.id, "❌ You are not authorized to use this command.")
+        return
+
+    if len(message.text.split()) < 2:
+        bot.send_message(message.chat.id, "📢 **Usage:** `/broadcast Your message here`")
+        return
+
+    text = message.text.split(None, 1)[1]
+    users = users_collection.find()
+
+    sent_count, failed_count = 0, 0
+
+    for user in users:
+        try:
+            bot.send_message(user['user_id'], f"📢 **Announcement:**\n\n{text}")
+            sent_count += 1
+        except Exception:
+            failed_count += 1
+
+    bot.send_message(
+        message.chat.id,
+        f"📊 **Broadcast Summary:**\n\n"
+        f"✅ Sent: {sent_count} users\n"
+        f"❌ Failed: {failed_count} users"
+    )
+
+
+
+
+
+
+
 # Keep bot alive
 keep_alive()
 
