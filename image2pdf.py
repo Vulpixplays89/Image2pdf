@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 # Environment variables (Use os.getenv() for security instead of hardcoding)
 TOKEN = "8082310597:AAFDZJTjw-dtJsCs5N82rxjcXNOdxAJGhQ4"
-MONGO_URL = "mongodb+srv://textbot:textbot@cluster0.afoyw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URL = "mongodb+srv://imagepdf:imagepdf@cluster0.s5aw4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 ADMIN_ID = 6897739611
 
 
