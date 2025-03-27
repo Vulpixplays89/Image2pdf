@@ -13,7 +13,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 # Environment variables (Use os.getenv() for security instead of hardcoding)
 TOKEN = "8082310597:AAFDZJTjw-dtJsCs5N82rxjcXNOdxAJGhQ4"
-MONGO_URL = "mongodb+srv://imagepdf:imagepdf@cluster0.s5aw4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
+MONGO_URL = "mongodb+srv://textbot:textbot@cluster0.afoyw.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0"
 ADMIN_ID = 6897739611
 
 
@@ -191,6 +191,7 @@ def list_users(message):
 
     bot.send_message(message.chat.id, f"📋 **Registered Users:**\n\n{user_list}")
 
+
 @bot.message_handler(commands=['broadcast'])
 def broadcast_message(message):
     if message.from_user.id != ADMIN_ID:
@@ -229,10 +230,17 @@ def broadcast_message(message):
 # Keep bot alive
 keep_alive()
 
-while True:
-    try:
-        print("🚀 Bot is running...")
-        bot.polling(none_stop=True, interval=3, timeout=30)
-    except Exception as e:
-        print(f"⚠️ Bot crashed due to: {e}")
-        time.sleep(5)  # Wait 5 seconds before restarting
+import threading
+
+def polling_thread():
+    while True:
+        try:
+            bot.polling(non_stop=True, interval=0, timeout=20)
+        except Exception as e:
+            print(f"Bot polling crashed: {e}")
+            time.sleep(5)  # Avoid immediate retries on crash
+
+# Run polling in a thread
+thread = threading.Thread(target=polling_thread)
+thread.start()
+
